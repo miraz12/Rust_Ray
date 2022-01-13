@@ -1,1 +1,1 @@
-# Rust_Ray-tracer-
+# Rust_Ray
