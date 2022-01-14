@@ -1,8 +1,6 @@
 use crate::ray::Ray;
-use crate::ray::HitRecord;
-use crate::ray::Hittable;
-use cgmath::{Vector3, InnerSpace};
-
+use crate::hittablelist::{HitRecord, Hittable};
+use cgmath::{InnerSpace, Vector3};
 
 pub struct Sphere {
     pub radius: f64,
@@ -11,15 +9,12 @@ pub struct Sphere {
 
 impl Sphere {
     pub fn new(center: Vector3<f64>, radius: f64) -> Sphere {
-        Sphere {
-            center,
-            radius
-        }
+        Sphere { center, radius }
     }
 }
 
 impl Hittable for Sphere {
-    fn hit(&self, ray: &Ray, t_min: f64, t_max: f64, rec: &mut HitRecord) -> bool {
+    fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord> {
         let oc = ray.origin - self.center;
         let a = ray.direction.magnitude2();
         let half_b = cgmath::dot(oc, ray.direction);
@@ -27,7 +22,7 @@ impl Hittable for Sphere {
         let discriminant = half_b * half_b - a * c;
 
         if discriminant < 0.0 {
-            return false
+            return None;
         }
 
         // Find the nearest root that lies in the acceptable range.
@@ -36,12 +31,17 @@ impl Hittable for Sphere {
         if root < t_min || t_max < root {
             root = (-half_b + sqrtd) / a;
             if root < t_min || t_max < root {
-                return  false;
+                return None;
             }
         }
-        rec.t = root;
-        rec.p = ray.at(rec.t);
-        rec.normal = (rec.p - self.center) / self.radius;
-        true
+        let mut rec = HitRecord {
+            p: ray.at(root),
+            normal: Vector3::new(0.0, 0.0, 0.0),
+            t: root,
+            front_face: false,
+        };
+        let outward_normal = (rec.p - self.center) / self.radius;
+        rec.set_face_normal(ray, outward_normal);
+        Some(rec)
     }
 }

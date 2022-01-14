@@ -1,11 +1,13 @@
-use cgmath::{Vector3, InnerSpace};
+use cgmath::Vector3;
 use std::io::Write;
+use rand::prelude::*;
 
 mod ray;
 use ray::Ray;
 mod sphere;
 use sphere::Sphere;
- 
+mod hittablelist;
+use hittablelist::{HittableList, Hittable};
 fn main() {
     let aspect_ratio = 16.0 / 9.0;
     let image_width = 400;
@@ -20,6 +22,10 @@ fn main() {
     let vertical = Vector3::new(0.0, viewport_h, 0.0);
     let lower_left_cornet =
         origin - horizontal / 2.0 - vertical / 2.0 - Vector3::new(0.0, 0.0, focal_len);
+
+    let mut world = HittableList::default();
+    world.add(Sphere::new(Vector3::new(0.0, 0.0, -1.0), 0.5));
+    world.add(Sphere::new(Vector3::new(0.0, -100.5, -1.0), 100.0));
 
     let file = match std::fs::File::create("image.ppm") {
         Err(why) => panic!("Couldn't create file: {}", why),
@@ -40,38 +46,24 @@ fn main() {
                 origin,
                 lower_left_cornet + u * horizontal + v * vertical - origin,
             );
-            write_color(ray_color(r), &file);
+            write_color(ray_color_world(r, &world), &file);
         }
     }
     eprintln!("Done.");
 }
 
-fn hit_sphere(center: Vector3<f64>, radius: f64, r: &Ray) -> f64 {
-    let oc = r.origin - center;
-    let a = r.direction.magnitude2();
-    let half_b = cgmath::dot(oc, r.direction);
-    let c = oc.magnitude2() - radius * radius;
-    let discriminant = half_b * half_b - a * c;
-    if discriminant < 0.0 {
-       -1.0 
-    } else {
-        (-half_b - discriminant.sqrt()) / a
+fn ray_color_world(ray: Ray, world: &HittableList) -> Vector3<f64> {
+    match world.hit(&ray, 0.0, 10000.0) {
+        Some(r) => 0.5 * (r.normal + Vector3::new(1.0, 1.0, 1.0)),
+        None => {
+            let len = ray.direction.x * ray.direction.x
+                + ray.direction.y * ray.direction.y
+                + ray.direction.z * ray.direction.z;
+            let unit_vector = ray.direction / len;
+            let t = 0.5 * (unit_vector.y + 1.0);
+            (1.0 - t) * Vector3::new(1.0, 1.0, 1.0) + t * Vector3::new(0.5, 0.7, 1.0)
+        }
     }
-}
-
-fn ray_color(ray: Ray) -> Vector3<f64> {
-    let t = hit_sphere(Vector3::new(0.0, 0.0, -1.0), 0.5, &ray);
-    if t > 0.0 {
-        let mut n = ray.at(t) - Vector3::new(0.0, 0.0, -1.0);
-        n = n / n.magnitude();
-        return 0.5 * Vector3::new(n.x + 1.0, n.y + 1.0, n.z + 1.0);
-    }
-    let len = ray.direction.x * ray.direction.x
-        + ray.direction.y * ray.direction.y
-        + ray.direction.z * ray.direction.z;
-    let unit_vector = ray.direction / len;
-    let t = 0.5 * (unit_vector.y + 1.0);
-    (1.0 - t) * Vector3::new(1.0, 1.0, 1.0) + t * Vector3::new(0.5, 0.7, 1.0)
 }
 
 fn write_color(col: Vector3<f64>, mut file: &std::fs::File) {
@@ -83,4 +75,9 @@ fn write_color(col: Vector3<f64>, mut file: &std::fs::File) {
         Err(why) => println!("Couldn't write file {}", why),
         _ => (),
     }
+}
+
+fn random_double_range(min: f64, max: f64) -> f64{
+    let mut rng = rand::thread_rng();
+    min + (max - min) * rng.gen::<f64>()
 }
