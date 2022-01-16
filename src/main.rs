@@ -1,5 +1,5 @@
 use cgmath::Vector3;
-use std::io::Write;
+use std::{io::Write, fmt::format};
 use rand::prelude::*;
 
 mod ray;
@@ -27,14 +27,10 @@ fn main() {
     world.add(Sphere::new(Vector3::new(0.0, 0.0, -1.0), 0.5));
     world.add(Sphere::new(Vector3::new(0.0, -100.5, -1.0), 100.0));
 
-    let file = match std::fs::File::create("image.ppm") {
-        Err(why) => panic!("Couldn't create file: {}", why),
-        Ok(file) => file,
-    };
-    match write!(&file, "P3\n{} {}\n255\n", image_width, image_height) {
-        Err(why) => println!("Couldn't write file {}", why),
-        _ => (),
-    }
+    let mut out_buffer: String = format!("P3\n{} {}\n255\n", image_width, image_height);
+
+   
+    
 
     for j in (0..image_height).rev() {
         eprintln!("\rScanlines remaining: {} ", j);
@@ -46,8 +42,17 @@ fn main() {
                 origin,
                 lower_left_cornet + u * horizontal + v * vertical - origin,
             );
-            write_color(ray_color_world(r, &world), &file);
+            write_color(ray_color_world(r, &world), &mut out_buffer);
         }
+    }
+
+    let file = match std::fs::File::create("image.ppm") {
+        Err(why) => panic!("Couldn't create file: {}", why),
+        Ok(file) => file,
+    };
+    match write!(&file, "{}", out_buffer) {
+        Err(why) => println!("Couldn't write file {}", why),
+        _ => (),
     }
     eprintln!("Done.");
 }
@@ -66,15 +71,13 @@ fn ray_color_world(ray: Ray, world: &HittableList) -> Vector3<f64> {
     }
 }
 
-fn write_color(col: Vector3<f64>, mut file: &std::fs::File) {
+fn write_color(col: Vector3<f64>, mut out_buffer: &mut String) {
     let ir = (255.999 * col.x) as i32;
     let ig = (255.999 * col.y) as i32;
     let ib = (255.999 * col.z) as i32;
 
-    match write!(file, "{} {} {}\n", ir, ig, ib) {
-        Err(why) => println!("Couldn't write file {}", why),
-        _ => (),
-    }
+    let color_buff = format!("{} {} {}\n", ir, ig, ib);
+    out_buffer.push_str( &color_buff);
 }
 
 fn random_double_range(min: f64, max: f64) -> f64{
