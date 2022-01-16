@@ -1,5 +1,5 @@
 use cgmath::Vector3;
-use std::{io::Write, fmt::format};
+use std::io::Write;
 use rand::prelude::*;
 
 mod ray;
@@ -8,20 +8,17 @@ mod sphere;
 use sphere::Sphere;
 mod hittablelist;
 use hittablelist::{HittableList, Hittable};
+mod camera;
+use camera::Camera;
+
 fn main() {
     let aspect_ratio = 16.0 / 9.0;
     let image_width = 400;
     let image_height = (image_width as f64 / aspect_ratio) as i32;
 
-    let viewport_h = 2.0;
-    let viewport_w = aspect_ratio * viewport_h;
-    let focal_len = 1.0;
+    let samples_per_pixel = 100;
 
-    let origin = Vector3::new(0.0, 0.0, 0.0);
-    let horizontal = Vector3::new(viewport_w, 0.0, 0.0);
-    let vertical = Vector3::new(0.0, viewport_h, 0.0);
-    let lower_left_cornet =
-        origin - horizontal / 2.0 - vertical / 2.0 - Vector3::new(0.0, 0.0, focal_len);
+    let cam = Camera::new();
 
     let mut world = HittableList::default();
     world.add(Sphere::new(Vector3::new(0.0, 0.0, -1.0), 0.5));
@@ -35,14 +32,15 @@ fn main() {
     for j in (0..image_height).rev() {
         eprintln!("\rScanlines remaining: {} ", j);
         for i in 0..image_width {
-            let u = (i as f64 / (image_width as f64 - 1.0)) as f64;
-            let v = (j as f64 / (image_height as f64 - 1.0)) as f64;
+            let mut pixel_color = Vector3::new(0.0, 0.0, 0.0);
+            for _k in 0..samples_per_pixel {
+                let u = ((i as f64 + random_double_range(0.0, 1.0)) / (image_width as f64 - 1.0)) as f64;
+                let v = ((j as f64 + random_double_range(0.0, 1.0) )/ (image_height as f64 - 1.0)) as f64;
 
-            let r = Ray::new(
-                origin,
-                lower_left_cornet + u * horizontal + v * vertical - origin,
-            );
-            write_color(ray_color_world(r, &world), &mut out_buffer);
+                let r = cam.get_ray(u, v);
+                pixel_color += ray_color_world(r, &world);
+            }
+            write_color(pixel_color, samples_per_pixel, &mut out_buffer);
         }
     }
 
@@ -71,16 +69,31 @@ fn ray_color_world(ray: Ray, world: &HittableList) -> Vector3<f64> {
     }
 }
 
-fn write_color(col: Vector3<f64>, mut out_buffer: &mut String) {
-    let ir = (255.999 * col.x) as i32;
-    let ig = (255.999 * col.y) as i32;
-    let ib = (255.999 * col.z) as i32;
+fn write_color(col: Vector3<f64>, sampples_per_pixel: i32, out_buffer: &mut String) {
+    let mut r = col.x;
+    let mut g = col.y;
+    let mut b = col.z;
+    
+    let scale = 1.0 / sampples_per_pixel as f64;
+    r *= scale;
+    g *= scale;
+    b *= scale;
 
-    let color_buff = format!("{} {} {}\n", ir, ig, ib);
+    let color_buff = format!("{} {} {}\n", (256.0 * clamp(r, 0.0, 0.999)) as i32, (256.0 * clamp(g, 0.0, 0.999)) as i32, (256.0 * clamp(b, 0.0, 0.999)) as i32);
     out_buffer.push_str( &color_buff);
 }
 
 fn random_double_range(min: f64, max: f64) -> f64{
     let mut rng = rand::thread_rng();
     min + (max - min) * rng.gen::<f64>()
+}
+
+fn clamp(x: f64, min: f64, max: f64) -> f64 {
+    if x < min {
+        return  min;
+    }
+    if x > max {
+        return  max;
+    }
+    x
 }
