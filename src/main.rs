@@ -1,4 +1,4 @@
-use cgmath::Vector3;
+use cgmath::{Vector3, InnerSpace};
 use std::io::Write;
 use rand::prelude::*;
 
@@ -13,10 +13,10 @@ use camera::Camera;
 
 fn main() {
     let aspect_ratio = 16.0 / 9.0;
-    let image_width = 400;
+    let image_width = 800;
     let image_height = (image_width as f64 / aspect_ratio) as i32;
-
     let samples_per_pixel = 100;
+    let max_depth = 50;
 
     let cam = Camera::new();
 
@@ -25,10 +25,6 @@ fn main() {
     world.add(Sphere::new(Vector3::new(0.0, -100.5, -1.0), 100.0));
 
     let mut out_buffer: String = format!("P3\n{} {}\n255\n", image_width, image_height);
-
-   
-    
-
     for j in (0..image_height).rev() {
         eprintln!("\rScanlines remaining: {} ", j);
         for i in 0..image_width {
@@ -38,7 +34,7 @@ fn main() {
                 let v = ((j as f64 + random_double_range(0.0, 1.0) )/ (image_height as f64 - 1.0)) as f64;
 
                 let r = cam.get_ray(u, v);
-                pixel_color += ray_color_world(r, &world);
+                pixel_color += ray_color_world(r, &world, max_depth);
             }
             write_color(pixel_color, samples_per_pixel, &mut out_buffer);
         }
@@ -55,9 +51,16 @@ fn main() {
     eprintln!("Done.");
 }
 
-fn ray_color_world(ray: Ray, world: &HittableList) -> Vector3<f64> {
-    match world.hit(&ray, 0.0, 10000.0) {
-        Some(r) => 0.5 * (r.normal + Vector3::new(1.0, 1.0, 1.0)),
+fn ray_color_world(ray: Ray, world: &HittableList, depth: i32) -> Vector3<f64> {
+    if depth <= 0 {
+        return Vector3::new(0.0, 0.0, 0.0);
+    }
+
+    match world.hit(&ray, 0.001, f64::MAX) {
+        Some(r) => {
+            let target = r.p + r.normal + get_random_vec();
+            0.5 * ray_color_world(Ray::new(r.p, target - r.p), world, depth-1)
+        },
         None => {
             let len = ray.direction.x * ray.direction.x
                 + ray.direction.y * ray.direction.y
@@ -75,9 +78,9 @@ fn write_color(col: Vector3<f64>, sampples_per_pixel: i32, out_buffer: &mut Stri
     let mut b = col.z;
     
     let scale = 1.0 / sampples_per_pixel as f64;
-    r *= scale;
-    g *= scale;
-    b *= scale;
+    r = (scale * r).sqrt();
+    g = (scale * g).sqrt();
+    b = (scale * b).sqrt();
 
     let color_buff = format!("{} {} {}\n", (256.0 * clamp(r, 0.0, 0.999)) as i32, (256.0 * clamp(g, 0.0, 0.999)) as i32, (256.0 * clamp(b, 0.0, 0.999)) as i32);
     out_buffer.push_str( &color_buff);
@@ -96,4 +99,18 @@ fn clamp(x: f64, min: f64, max: f64) -> f64 {
         return  max;
     }
     x
+}
+
+fn get_random_vec() -> Vector3<f64> {
+
+    let random_min = -1.0;
+    let random_max = 1.0;
+    let mut p: Vector3<f64>;
+    loop {
+        p = Vector3::new(random_double_range(random_min, random_max), random_double_range(random_min, random_max), random_double_range(random_min, random_max));
+        if p.magnitude2() >= 1.0 {
+            continue;
+        }
+        return p;
+    }
 }
