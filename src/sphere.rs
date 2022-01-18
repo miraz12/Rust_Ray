@@ -1,19 +1,19 @@
-use crate::ray::Ray;
-use crate::hittablelist::{HitRecord, Hittable};
 use cgmath::{InnerSpace, Vector3};
+use crate::{material::Material, ray::Ray, hittablelist::{HitRecord, Hittable}};
 
-pub struct Sphere {
+pub struct Sphere<T: Material>{
     pub radius: f64,
     pub center: Vector3<f64>,
+    pub material: T
 }
 
-impl Sphere {
-    pub fn new(center: Vector3<f64>, radius: f64) -> Sphere {
-        Sphere { center, radius }
+impl<T: Material> Sphere<T>{
+    pub fn new(center: Vector3<f64>, radius: f64, material: T) -> Sphere<T> {
+        Sphere::<T> { center, radius, material}
     }
 }
 
-impl Hittable for Sphere {
+impl<T: Material> Hittable for Sphere<T> {
     fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord> {
         let oc = ray.origin - self.center;
         let a = ray.direction.magnitude2();
@@ -39,6 +39,7 @@ impl Hittable for Sphere {
             normal: Vector3::new(0.0, 0.0, 0.0),
             t: root,
             front_face: false,
+            material: &self.material
         };
         let outward_normal = (rec.p - self.center) / self.radius;
         rec.set_face_normal(ray, outward_normal);

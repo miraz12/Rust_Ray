@@ -1,14 +1,15 @@
-use crate::ray::Ray;
 use cgmath::Vector3;
+use crate::{ray::Ray, material::Material};
 
-pub struct HitRecord {
+pub struct HitRecord <'a> {
     pub p: Vector3<f64>,
     pub normal: Vector3<f64>,
     pub t: f64,
     pub front_face: bool,
+    pub material: &'a dyn Material
 }
 
-impl HitRecord {
+impl <'a> HitRecord <'a> {
     pub fn set_face_normal(&mut self, r: &Ray, outward_normal: Vector3<f64>) {
         self.front_face = cgmath::dot(r.direction, outward_normal) < 0.0;
         self.normal = match self.front_face {
