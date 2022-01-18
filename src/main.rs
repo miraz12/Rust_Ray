@@ -1,5 +1,5 @@
 use cgmath::{Vector3, InnerSpace};
-use std::io::Write;
+use std::{io::Write, f64::consts::PI};
 use rand::prelude::*;
 
 mod ray;
@@ -11,22 +11,30 @@ use hittablelist::{HittableList, Hittable};
 mod camera;
 use camera::Camera;
 
-use crate::material::{Lambertian, Metal};
+use crate::material::{Lambertian, Metal, Dielectric};
 mod material;
 
 fn main() {
     let aspect_ratio = 16.0 / 9.0;
-    let image_width = 800;
+    let image_width = 1000;
     let image_height = (image_width as f64 / aspect_ratio) as i32;
     let samples_per_pixel = 100;
     let max_depth = 50;
 
-    let cam = Camera::new();
-
+    let r = (PI /4.0).cos();
     let mut world = HittableList::default();
     world.add(Sphere::new(Vector3::new(0.0, 0.0, -1.0), 0.5, Lambertian{albedo: Vector3::new(0.7, 0.3, 0.3)}));
     world.add(Sphere::new(Vector3::new(0.0, -100.5, -1.0), 100.0, Lambertian{albedo: Vector3::new(0.8, 0.8, 0.0)}));
-    world.add(Sphere::new(Vector3::new(-1.0,    0.0, -1.0), 0.5, Metal{albedo: Vector3::new(0.8, 0.8, 0.8)}));
+    world.add(Sphere::new(Vector3::new(-1.0,    0.0, -1.0), 0.5, Dielectric{ir: 1.5}));
+    world.add(Sphere::new(Vector3::new(-1.0,    0.0, -1.0), -0.4, Dielectric{ir: 1.5}));
+    world.add(Sphere::new(Vector3::new(1.0,    0.0, -1.0), 0.5, Metal{albedo: Vector3::new(0.8, 0.6, 0.2), fuzz: 1.0}));
+
+
+   // world.add(Sphere::new(Vector3::new(-r, 0.0, -1.0), r, Lambertian{albedo: Vector3::new(0.0, 0.0, 1.0)}));
+   // world.add(Sphere::new(Vector3::new(r, 0.0, -1.0), r, Lambertian{albedo: Vector3::new(1.0, 0.0, 0.0)}));
+
+    let cam = Camera::new(90.0, aspect_ratio);
+
 
     let mut out_buffer: String = format!("P3\n{} {}\n255\n", image_width, image_height);
     for j in (0..image_height).rev() {
@@ -111,7 +119,7 @@ fn clamp(x: f64, min: f64, max: f64) -> f64 {
     x
 }
 
-fn get_random_vec() -> Vector3<f64> {
+fn get_random_in_unit_sphere() -> Vector3<f64> {
 
     let random_min = -1.0;
     let random_max = 1.0;
@@ -122,19 +130,5 @@ fn get_random_vec() -> Vector3<f64> {
             continue;
         }
         return p;
-    }
-}
-
-fn get_random_unit_vec() -> Vector3<f64> {
-    let vec = get_random_vec();
-    vec / vec.magnitude()
-}
-
-fn get_vec_in_hempisphere(normal: Vector3<f64>) -> Vector3<f64> {
-    let vec = get_random_unit_vec();
-    if cgmath::dot(vec, normal) > 0.0 {
-        return vec;
-    } else {
-        return -vec;
     }
 }
