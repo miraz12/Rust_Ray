@@ -1,5 +1,9 @@
 use cgmath::Vector3;
 use crate::{ray::Ray, material::Material};
+use std::{
+    mem::{align_of, size_of},
+    ptr,
+};
 
 pub struct HitRecord <'a> {
     pub p: Vector3<f64>,
@@ -25,11 +29,11 @@ pub trait Hittable {
 
 #[derive(Default)]
 pub struct HittableList {
-    objects: Vec<Box<dyn Hittable>>,
+    objects: Vec<Box<dyn Hittable + Send + Sync>>,
 }
 
 impl HittableList {
-    pub fn add(&mut self, obj: impl Hittable + 'static) {
+    pub fn add(&mut self, obj: impl Hittable + Send + Sync + 'static) {
         self.objects.push(Box::new(obj));
     }
 }

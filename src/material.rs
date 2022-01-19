@@ -1,4 +1,4 @@
-use cgmath::{Vector3, Zero, InnerSpace, num_traits::Pow};
+use cgmath::{Vector3, Zero, InnerSpace};
 use rand::Rng;
 
 use crate::{hittablelist::HitRecord, ray::Ray, get_random_in_unit_sphere};
