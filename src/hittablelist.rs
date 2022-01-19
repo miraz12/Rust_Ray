@@ -1,9 +1,5 @@
 use cgmath::Vector3;
 use crate::{ray::Ray, material::Material};
-use std::{
-    mem::{align_of, size_of},
-    ptr,
-};
 
 pub struct HitRecord <'a> {
     pub p: Vector3<f64>,

@@ -3,8 +3,8 @@ use std::{io::Write};
 use rand::prelude::*;
 use std::thread;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::sync::mpsc;
+use std::sync::mpsc::{Sender, Receiver};
 
 
 mod ray;
@@ -19,6 +19,8 @@ use camera::Camera;
 use crate::material::{Lambertian, Metal, Dielectric};
 mod material;
 
+static NR_THREADS: i32 = 12;
+
 fn main() {
 
     let world: Arc<HittableList> = Arc::new(setup_scene());
@@ -31,48 +33,70 @@ fn main() {
     let aperture = 0.1;
     let cam = Arc::new(Camera::new(lookfrom, lookat, vup, 20.0, aspect_ratio, aperture, dist_to_focus));
 
-    let image_width = 200;
+    let image_width = 1200;
     let image_height = (image_width as f64 / aspect_ratio) as i32;
 
     
-
-    let vec_list: Arc<Mutex<Vec<Vec<Vector3<i32>>>>> = Arc::new(Mutex::new(Vec::<Vec::<Vector3<i32>>>::new()));
-    //let (tx, rx): (Sender<i32>, Receiver<i32>) = mpsc::channel();
+    let mut tx_list = Vec::new();
+    let (tx, rx): (Sender<Vec<Vector3<i32>>>, Receiver<Vec<Vector3<i32>>>) = mpsc::channel();
     //let mut t;
     // TODO: Threading
 
-    for i in 0..1 {
-        let threadWorld = world.clone();
-        let threadCam = cam.clone();
-       // t = thread::spawn(move || { 
-        //    let list = &vec_list;
-            let col = shoot_rays(image_width, image_height, &threadWorld, &threadCam);
-            vec_list.lock().unwrap().push(col);
-       // });
+    for _i in 0..NR_THREADS {
+        let thread_world = world.clone();
+        let thread_cam = cam.clone();
+        let thread_tx = tx.clone();
+        let col = thread::spawn(move || {
+            
+            thread_tx.send(shoot_rays(image_width, image_height, &thread_world, &thread_cam)).unwrap();
+        });
+
+        tx_list.push(col);
     }
 
     let file = match std::fs::File::create("image.ppm") {
         Err(why) => panic!("Couldn't create file: {}", why),
         Ok(file) => file,
     };
-    match write!(&file, "P3\n{} {}\n255\n", image_width, image_height) {
-        Err(why) => println!("Couldn't write file {}", why),
-        _ => (),
-    }
-    for a in vec_list.lock().unwrap().iter() {
-        for v in a {
-            match writeln!(&file, "{} {} {}", v.x, v.y, v.z) {
-                Err(why) => println!("Couldn't write file {}", why),
-                _ => ()
-            };
+
+    let mut out_buffer: String = format!("P3\n{} {}\n255\n", image_width, image_height);
+
+    let mut final_vec: Vec<Vec<Vector3<i32>>> = Vec::new();
+    for _i in 0..NR_THREADS {
+        for r in rx.recv() {
+            final_vec.push(r);
         }
     }
+    
+    for c in tx_list {
+        match c.join() {
+            Err(_why) => panic!("Error joining threads"),
+            _ => ()
+        }
+    }
+
+    for j in 0..image_height  {
+        for i in 0..image_width {
+            let mut val = Vector3::new(0, 0, 0);
+            for x in 0..NR_THREADS {
+                val = val + final_vec[x as usize][(image_width * j + i) as usize];
+            }
+            out_buffer.push_str(&format!("{} {} {}\n", (val.x as f64/NR_THREADS as f64) as i32, (val.y as f64/NR_THREADS as f64) as i32, (val.z as f64/NR_THREADS as f64) as i32));
+        }
+    }
+
+    match write!(&file, "{}", out_buffer) {
+        Err(why) => println!("Couldn't write file {}", why),
+        _ => (),
+    } 
+
+    println!("Done.");
 }
 
 fn shoot_rays(image_width: i32, image_height: i32, world: &HittableList, cam: &Camera) -> Vec<Vector3<i32>>{
 
     let mut color_vec = Vec::new();
-    let samples_per_pixel = 100;
+    let samples_per_pixel = 100/NR_THREADS;
     let max_depth = 50;
 
     for j in (0..image_height).rev() {
@@ -89,7 +113,6 @@ fn shoot_rays(image_width: i32, image_height: i32, world: &HittableList, cam: &C
             write_color(pixel_color, samples_per_pixel, &mut color_vec );
         }
     }
-    eprintln!("Done.");
     color_vec
 }
 
